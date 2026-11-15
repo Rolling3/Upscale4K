@@ -3835,7 +3835,7 @@ checksum = "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8"
 
 [[package]]
 name = "upscale4k"
-version = "1.0.0"
+version = "1.0.0-beta"
 dependencies = [
  "serde",
  "tauri",
@@ -3848,18 +3848,18 @@ dependencies = [
 
 [[package]]
 name = "upscale4k-application"
-version = "1.0.0"
+version = "1.0.0-beta"
 dependencies = [
  "upscale4k-domain",
 ]
 
 [[package]]
 name = "upscale4k-domain"
-version = "1.0.0"
+version = "1.0.0-beta"
 
 [[package]]
 name = "upscale4k-infrastructure"
-version = "1.0.0"
+version = "1.0.0-beta"
 dependencies = [
  "serde",
  "serde_json",

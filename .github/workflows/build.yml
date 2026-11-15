@@ -3,7 +3,7 @@ name: Build
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ["v*", "beta*"]
   pull_request:
   workflow_dispatch:
 
@@ -62,7 +62,7 @@ jobs:
   release:
     name: Create draft release
     needs: test
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -82,11 +82,17 @@ jobs:
             Upscale4K needs ffmpeg. Windows: `winget install --id Gyan.FFmpeg -e`. macOS: `brew install ffmpeg`.
             The Windows installer and the macOS app are not code-signed by a paid certificate. See the README for the first-launch steps.
         run: |
+          # "beta" tags are published as pre-releases named "Upscale4K Beta".
+          case "$TAG" in
+            beta*) name="Upscale4K Beta${TAG#beta}"; prerelease=true ;;
+            *) name="Upscale4K $TAG"; prerelease=false ;;
+          esac
           id=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
             --jq '.[] | select(.tag_name == env.TAG and .draft) | .id' | head -n 1)
           if [ -z "$id" ]; then
             id=$(gh api "repos/${GITHUB_REPOSITORY}/releases" \
-              -f tag_name="$TAG" -f name="Upscale4K $TAG" -f body="$BODY" -F draft=true --jq .id)
+              -f tag_name="$TAG" -f name="$name" -f body="$BODY" \
+              -F draft=true -F prerelease="$prerelease" --jq .id)
           fi
           case "$id" in
             ''|*[!0-9]*) echo "Unexpected release id: $id" >&2; exit 1 ;;
@@ -99,7 +105,7 @@ jobs:
     if: >-
       always() && needs.test.result == 'success' &&
       (needs.release.result == 'success' || needs.release.result == 'skipped') &&
-      (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+      (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
     strategy:
       fail-fast: false
       matrix:
@@ -150,3 +156,17 @@ jobs:
           releaseId: ${{ needs.release.outputs.id }}
           uploadUpdaterJson: false
           uploadWorkflowArtifacts: true
+
+  # The draft becomes public only when every build has uploaded its file.
+  publish:
+    name: Publish release
+    needs: [release, build]
+    if: needs.release.result == 'success' && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ID: ${{ needs.release.outputs.id }}
+        run: gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${ID}" -F draft=false --jq .html_url

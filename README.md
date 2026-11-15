@@ -27,7 +27,7 @@ If ffmpeg is missing, the app shows the command. On Windows it also has a button
 
 ## Install
 
-Download the latest version from the [Releases page](../../releases/latest).
+Download Upscale4K from the [Releases page](../../releases). The current release is a beta.
 
 ### Windows
 
