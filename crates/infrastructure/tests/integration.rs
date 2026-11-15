@@ -338,6 +338,27 @@ fn cancel_stops_ffmpeg_quickly_and_leaves_nothing_behind() {
 }
 
 #[test]
+fn a_clip_in_another_container_renamed_to_mp4_is_refused_before_encoding() {
+    // An MPEG-TS stream renamed to .mp4 would be decoded through content probing;
+    // the app only lets ffprobe and ffmpeg use the MP4/MOV and Matroska demuxers.
+    let kit = toolkit();
+    let work = tempfile::tempdir().unwrap();
+    let disguised = work.path().join("renamed.mp4");
+    generate(
+        &kit,
+        &disguised,
+        &["-f", "lavfi", "-i", "testsrc2=size=320x240:rate=30", "-t", "1", "-c:v", "libx264", "-f", "mpegts"],
+    );
+
+    let probe = FfprobeMediaProbe::new(kit.ffprobe.clone());
+    let got = upscale4k_application::ports::MediaProbe::probe(&probe, &disguised);
+    assert!(
+        matches!(got, Err(upscale4k_application::error::UpscaleError::InputUnreadable { .. })),
+        "expected the disguised clip to be refused, got {got:?}"
+    );
+}
+
+#[test]
 fn missing_and_unreadable_inputs_are_described_plainly() {
     let kit = toolkit();
     let work = tempfile::tempdir().unwrap();

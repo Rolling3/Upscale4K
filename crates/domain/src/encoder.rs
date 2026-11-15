@@ -94,6 +94,12 @@ pub struct EncodeJob<'a> {
     pub frame_rate: Option<f64>,
 }
 
+/// Options that restrict how ffmpeg and ffprobe open an untrusted clip: only
+/// the local file itself, and only the MP4/MOV or Matroska demuxers. Without
+/// them, a renamed playlist or other container could make ffmpeg open further
+/// files or URLs named inside the clip.
+pub const INPUT_RESTRICTIONS: [&str; 4] = ["-protocol_whitelist", "file", "-format_whitelist", "mov,matroska"];
+
 /// Full ffmpeg argument list: scale to 2160 lines with lanczos, keep the
 /// frame rate (no `-r`), keep or convert the audio, write MP4 with the index
 /// at the front, and report progress on stdout.
@@ -105,6 +111,7 @@ pub fn ffmpeg_args(job: &EncodeJob<'_>) -> Vec<OsString> {
     };
 
     let mut args = os(&["-hide_banner", "-nostdin", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-y"]);
+    args.extend(os(&INPUT_RESTRICTIONS));
     args.push("-i".into());
     args.push(job.input.as_os_str().to_os_string());
     args.extend(os(&["-map", "0:V:0", "-map", "0:a?", "-vf", &scale]));
@@ -157,11 +164,24 @@ mod tests {
     fn expected(video: &[&str], audio: &[&str]) -> Vec<String> {
         let input = Path::new("in").join("clip.mkv").to_string_lossy().into_owned();
         let temp = Path::new("out").join("clip_4K.mp4.part").to_string_lossy().into_owned();
-        let mut v: Vec<String> =
-            ["-hide_banner", "-nostdin", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-y", "-i"]
-                .iter()
-                .map(|s| s.to_string())
-                .collect();
+        let mut v: Vec<String> = [
+            "-hide_banner",
+            "-nostdin",
+            "-loglevel",
+            "error",
+            "-nostats",
+            "-progress",
+            "pipe:1",
+            "-y",
+            "-protocol_whitelist",
+            "file",
+            "-format_whitelist",
+            "mov,matroska",
+            "-i",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
         v.push(input);
         v.extend(["-map", "0:V:0", "-map", "0:a?", "-vf", "scale=-2:2160:flags=lanczos"].map(String::from));
         v.extend(video.iter().map(|s| s.to_string()));
@@ -234,6 +254,17 @@ mod tests {
                 &["-c:a", "aac", "-b:a", "384k"]
             )
         );
+    }
+
+    #[test]
+    fn the_input_may_only_be_a_local_mp4_mov_or_matroska_file() {
+        // Without these, a renamed playlist or other container could make ffmpeg
+        // open further files or URLs chosen by the file's content.
+        let args = job_args(Encoder::X264, AudioPlan::Copy, None);
+        let input_at = args.iter().position(|a| a == "-i").unwrap();
+        let before_input = &args[..input_at];
+        assert!(before_input.windows(2).any(|w| w[0] == "-protocol_whitelist" && w[1] == "file"), "{args:?}");
+        assert!(before_input.windows(2).any(|w| w[0] == "-format_whitelist" && w[1] == "mov,matroska"), "{args:?}");
     }
 
     #[test]

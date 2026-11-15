@@ -6,6 +6,7 @@ use std::time::Duration;
 use serde::Deserialize;
 use upscale4k_application::error::UpscaleError;
 use upscale4k_application::ports::MediaProbe;
+use upscale4k_domain::encoder::INPUT_RESTRICTIONS;
 use upscale4k_domain::media::{FrameSize, VideoInfo, displayed_size};
 
 use crate::process::{hidden_command, run_with_timeout};
@@ -26,7 +27,10 @@ impl MediaProbe for FfprobeMediaProbe {
             return Err(UpscaleError::InputNotFound { path: input.to_path_buf() });
         }
         let mut command = hidden_command(&self.ffprobe);
-        command.args(["-v", "error", "-print_format", "json", "-show_format", "-show_streams"]).arg(input);
+        command
+            .args(["-v", "error", "-print_format", "json", "-show_format", "-show_streams"])
+            .args(INPUT_RESTRICTIONS)
+            .arg(input);
         let unreadable = |detail: String| UpscaleError::InputUnreadable { path: input.to_path_buf(), detail };
 
         let Some(run) = run_with_timeout(command, Duration::from_secs(60)) else {
