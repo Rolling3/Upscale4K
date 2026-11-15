@@ -11,6 +11,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Read-only by default; jobs that publish ask for more themselves.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Tests (${{ matrix.os }})
@@ -79,11 +83,14 @@ jobs:
             The Windows installer and the macOS app are not code-signed by a paid certificate. See the README for the first-launch steps.
         run: |
           id=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
-            --jq ".[] | select(.tag_name == \"${TAG}\" and .draft) | .id" | head -n 1)
+            --jq '.[] | select(.tag_name == env.TAG and .draft) | .id' | head -n 1)
           if [ -z "$id" ]; then
             id=$(gh api "repos/${GITHUB_REPOSITORY}/releases" \
               -f tag_name="$TAG" -f name="Upscale4K $TAG" -f body="$BODY" -F draft=true --jq .id)
           fi
+          case "$id" in
+            ''|*[!0-9]*) echo "Unexpected release id: $id" >&2; exit 1 ;;
+          esac
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
   build:
