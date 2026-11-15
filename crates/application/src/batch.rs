@@ -204,14 +204,15 @@ impl Upscaler<'_> {
 
         let duration = job.info.duration_secs;
         let index = job.index;
+        // ffmpeg's position can dip while it flushes the last frames; the bar only moves forward.
+        let mut furthest = 0.0_f64;
         let mut report = |p: TranscodeProgress| {
             let update = progress_update(p.out_time_us, duration, p.speed);
-            emit(BatchEvent::FileProgress {
-                index,
-                fraction: update.fraction,
-                eta_secs: update.eta_secs,
-                speed: update.speed,
+            let fraction = update.fraction.map(|f| {
+                furthest = furthest.max(f);
+                furthest
             });
+            emit(BatchEvent::FileProgress { index, fraction, eta_secs: update.eta_secs, speed: update.speed });
         };
         match self.transcoder.transcode(&args, encoder, &mut report, cancel) {
             Ok(()) => Ok(temp),
@@ -403,6 +404,30 @@ mod tests {
             eta_secs: Some(1.25),
             speed: Some(2.0)
         }));
+    }
+
+    #[test]
+    fn progress_never_moves_backwards_even_when_ffmpeg_reports_an_earlier_time() {
+        // Seen with NVENC on a real clip: ffmpeg's position dips while it flushes the last frames.
+        let fs = with_inputs(&["a.mp4"]);
+        let at = |us: i64| TranscodeProgress { out_time_us: Some(us), speed: Some(1.0) };
+        let tx = FakeTranscoder::new(&fs, vec![Step::Succeed(vec![at(4_500_000), at(4_000_000), at(5_000_000)])]);
+        let run = run_with(
+            &FakeProbe::default(),
+            &tx,
+            &fs,
+            &request(Encoder::Nvenc, vec![item("a.mp4", ConflictChoice::KeepBoth)]),
+        );
+
+        let fractions: Vec<f64> = run
+            .events
+            .iter()
+            .filter_map(|e| match e {
+                BatchEvent::FileProgress { fraction, .. } => *fraction,
+                _ => None,
+            })
+            .collect();
+        assert_eq!(fractions, vec![0.9, 0.9, 1.0]);
     }
 
     #[test]

@@ -1,0 +1,19 @@
+[package]
+name = "upscale4k-infrastructure"
+description = "Upscale4K adapters: ffmpeg and ffprobe processes, local files, settings file, platform defaults."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+upscale4k-domain.workspace = true
+upscale4k-application.workspace = true
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.56"
+
+[dev-dependencies]
+tempfile = "3"
