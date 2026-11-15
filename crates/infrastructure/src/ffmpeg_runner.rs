@@ -14,7 +14,7 @@ use upscale4k_application::ports::{TranscodeProgress, Transcoder};
 use upscale4k_domain::encoder::Encoder;
 
 use crate::ffmpeg_errors::classify_failure;
-use crate::process::{hidden_command, read_tail};
+use crate::process::{hidden_command, read_tail, spawn_tied};
 use crate::progress_parser::ProgressParser;
 
 /// Keep at most this much of ffmpeg's error output.
@@ -46,7 +46,8 @@ impl Transcoder for FfmpegTranscoder {
 
         let mut command = hidden_command(&self.ffmpeg);
         command.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
-        let mut child = command.spawn().map_err(|e| start_error(format!("ffmpeg couldn't be started: {e}")))?;
+        let mut child =
+            spawn_tied(&mut command).map_err(|e| start_error(format!("ffmpeg couldn't be started: {e}")))?;
         let (Some(stdout), Some(mut stderr)) = (child.stdout.take(), child.stderr.take()) else {
             stop(&mut child);
             return Err(start_error("ffmpeg's output couldn't be read.".into()));

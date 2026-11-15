@@ -3866,6 +3866,7 @@ dependencies = [
  "tempfile",
  "upscale4k-application",
  "upscale4k-domain",
+ "windows-sys 0.61.2",
  "winreg",
 ]
 

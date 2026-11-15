@@ -358,6 +358,99 @@ fn a_clip_in_another_container_renamed_to_mp4_is_refused_before_encoding() {
     );
 }
 
+/// What happens to ffmpeg when the app's process is ended from outside
+/// (End task in Task Manager, or a crash), so its own cancel never runs.
+#[cfg(windows)]
+mod abrupt_exit {
+    use super::*;
+    use std::process::Stdio;
+    use std::thread;
+    use upscale4k_infrastructure::process::{hidden_command, run_with_timeout};
+
+    const MODE: &str = "UPSCALE4K_STAND_IN";
+    const DIR: &str = "UPSCALE4K_STAND_IN_DIR";
+
+    /// Stands in for the app in the tests below: they start it as a separate
+    /// process and end it while ffmpeg runs. Without the variables it does nothing.
+    #[test]
+    fn app_stand_in() {
+        let (Ok(mode), Ok(dir)) = (std::env::var(MODE), std::env::var(DIR)) else {
+            return;
+        };
+        let kit = toolkit();
+        let dir = PathBuf::from(dir);
+        if mode == "encode" {
+            let platform = DesktopPlatform::new(Some(kit.ffmpeg.clone()));
+            // libx264 at 4K is slow enough that the encode is still running when the app is ended.
+            let input = dir.join("long.mp4");
+            run_batch(&kit, &platform, Encoder::X264, &dir.join("out"), &[input], |_| {}, &CancelToken::new());
+        } else {
+            // A short helper run (ffprobe, the encoder test) that hangs, for example on a slow drive.
+            let mut command = hidden_command(&kit.ffmpeg);
+            command
+                .args(["-hide_banner", "-loglevel", "error", "-y", "-re", "-f", "lavfi", "-i"])
+                .args(["testsrc2=size=320x240:rate=30", "-t", "120", "-f", "nut"])
+                .arg(dir.join("helper.nut"));
+            let _ = run_with_timeout(command, Duration::from_secs(120));
+        }
+    }
+
+    /// Start the stand-in, wait until ffmpeg writes `busy_file`, end the
+    /// stand-in the way Task Manager does, and tell whether `busy_file` was
+    /// released. ffmpeg keeps the file open while it runs, and Windows
+    /// refuses to delete an open file.
+    fn released_after_abrupt_exit(mode: &str, dir: &Path, busy_file: &Path) -> bool {
+        let mut app = Command::new(std::env::current_exe().unwrap())
+            .args(["abrupt_exit::app_stand_in", "--exact", "--test-threads=1"])
+            .env(MODE, mode)
+            .env(DIR, dir)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let started = Instant::now();
+        while fs::metadata(busy_file).map(|m| m.len()).unwrap_or(0) == 0 {
+            assert!(started.elapsed() < Duration::from_secs(60), "ffmpeg never started writing {busy_file:?}");
+            thread::sleep(Duration::from_millis(100));
+        }
+        app.kill().unwrap();
+        app.wait().unwrap();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            if fs::remove_file(busy_file).is_ok() {
+                return true;
+            }
+            if Instant::now() > deadline {
+                return false;
+            }
+            thread::sleep(Duration::from_millis(200));
+        }
+    }
+
+    #[test]
+    fn ffmpeg_stops_when_the_app_is_ended_in_the_middle_of_an_encode() {
+        let kit = toolkit();
+        let work = tempfile::tempdir().unwrap();
+        gameplay_clip(&kit, &work.path().join("long.mp4"), 30, 20, "aac");
+        let part = work.path().join("out").join("long_4K.mp4.part");
+        assert!(
+            released_after_abrupt_exit("encode", work.path(), &part),
+            "ffmpeg kept encoding after the app was gone"
+        );
+    }
+
+    #[test]
+    fn a_helper_run_stops_when_the_app_is_ended_while_waiting_for_it() {
+        let work = tempfile::tempdir().unwrap();
+        let file = work.path().join("helper.nut");
+        assert!(
+            released_after_abrupt_exit("helper", work.path(), &file),
+            "the helper kept running after the app was gone"
+        );
+    }
+}
+
 #[test]
 fn missing_and_unreadable_inputs_are_described_plainly() {
     let kit = toolkit();
