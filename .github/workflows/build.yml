@@ -50,13 +50,25 @@ jobs:
         run: brew install ffmpeg
 
       - name: ffmpeg version
-        run: ffmpeg -hide_banner -version
+        shell: bash
+        run: |
+          ffmpeg -hide_banner -version
+          echo "::notice::ffmpeg used by the tests: $(command -v ffmpeg)"
 
       - name: Core unit tests (domain and application)
         run: cargo test --locked -p upscale4k-domain -p upscale4k-application
 
+      # Failing lines are repeated as annotations, so they show on the run page.
       - name: Infrastructure unit and integration tests (real ffmpeg)
-        run: cargo test --locked -p upscale4k-infrastructure
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test --locked -p upscale4k-infrastructure 2>&1 | tee test-output.txt && exit 0
+          code=$?
+          { grep -E "panicked|FAILED|^error|left:|right:|exit code|didn't exit" test-output.txt || true; } | head -n 40 |
+            while IFS= read -r line; do echo "::error::${line}"; done
+          echo "::error::cargo test exited with code ${code}"
+          exit "$code"
 
   # One draft release per tag, created before the parallel builds upload to it.
   release:
