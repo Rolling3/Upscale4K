@@ -1,0 +1,141 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          key: tests
+
+      - name: Install ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y --no-progress
+
+      - name: Install ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: brew install ffmpeg
+
+      - name: ffmpeg version
+        run: ffmpeg -hide_banner -version
+
+      - name: Core unit tests (domain and application)
+        run: cargo test --locked -p upscale4k-domain -p upscale4k-application
+
+      - name: Infrastructure unit and integration tests (real ffmpeg)
+        run: cargo test --locked -p upscale4k-infrastructure
+
+  # One draft release per tag, created before the parallel builds upload to it.
+  release:
+    name: Create draft release
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      id: ${{ steps.draft.outputs.id }}
+    steps:
+      - id: draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          BODY: |
+            Download the file for your computer:
+            - Windows: `Upscale4K_<version>_x64-setup.exe`
+            - macOS on Apple Silicon (M1 and later): `Upscale4K_<version>_aarch64.dmg`
+            - macOS on Intel: `Upscale4K_<version>_x64.dmg`
+
+            Upscale4K needs ffmpeg. Windows: `winget install --id Gyan.FFmpeg -e`. macOS: `brew install ffmpeg`.
+            The Windows installer and the macOS app are not code-signed by a paid certificate. See the README for the first-launch steps.
+        run: |
+          id=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq ".[] | select(.tag_name == \"${TAG}\" and .draft) | .id" | head -n 1)
+          if [ -z "$id" ]; then
+            id=$(gh api "repos/${GITHUB_REPOSITORY}/releases" \
+              -f tag_name="$TAG" -f name="Upscale4K $TAG" -f body="$BODY" -F draft=true --jq .id)
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: [test, release]
+    if: >-
+      always() && needs.test.result == 'success' &&
+      (needs.release.result == 'success' || needs.release.result == 'skipped') &&
+      (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            platform: windows-latest
+            args: "--bundles nsis"
+          - name: macOS Apple Silicon
+            platform: macos-latest
+            args: "--target aarch64-apple-darwin --bundles app,dmg"
+          - name: macOS Intel
+            platform: macos-latest
+            args: "--target x86_64-apple-darwin --bundles app,dmg"
+    runs-on: ${{ matrix.platform }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          key: ${{ matrix.name }}
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Type-check the interface
+        run: npm run typecheck
+
+      # The macOS app is ad-hoc signed (bundle.macOS.signingIdentity "-" in tauri.conf.json).
+      # On tags the bundles go to the draft release; manual runs keep them as workflow artifacts.
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: ${{ matrix.args }}
+          releaseId: ${{ needs.release.outputs.id }}
+          uploadUpdaterJson: false
+          uploadWorkflowArtifacts: true

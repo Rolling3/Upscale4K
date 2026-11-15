@@ -101,12 +101,17 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
+    // Paths are built with the platform's separator so the tests mean the same on Windows and macOS.
     fn input() -> PathBuf {
-        PathBuf::from(r"C:\clips\boss.mkv")
+        Path::new("clips").join("boss.mkv")
+    }
+
+    fn output_dir() -> PathBuf {
+        Path::new("out").join("4K")
     }
 
     fn output() -> PathBuf {
-        PathBuf::from(r"C:\OPFile\4K\boss_4K.mp4.part")
+        output_dir().join("boss_4K.mp4.part")
     }
 
     fn classify(stderr: &str) -> UpscaleError {
@@ -143,7 +148,7 @@ mod tests {
         assert_eq!(
             classify(stderr),
             UpscaleError::OutputFolderNotWritable {
-                folder: PathBuf::from(r"C:\OPFile\4K"),
+                folder: output_dir(),
                 detail: "ffmpeg was denied access to the folder.".into()
             }
         );
@@ -157,7 +162,7 @@ mod tests {
         assert_eq!(
             classify(stderr),
             UpscaleError::OutputFolderNotWritable {
-                folder: PathBuf::from(r"C:\OPFile\4K"),
+                folder: output_dir(),
                 detail: "The folder doesn't exist any more.".into()
             }
         );
@@ -171,7 +176,7 @@ mod tests {
         assert_eq!(
             classify(stderr),
             UpscaleError::OutputFolderNotWritable {
-                folder: PathBuf::from(r"C:\OPFile\4K"),
+                folder: output_dir(),
                 detail: "ffmpeg couldn't create the file: File name too long".into()
             }
         );
@@ -180,7 +185,7 @@ mod tests {
     #[test]
     fn a_full_disk_is_reported_as_such() {
         let stderr = "[out#0/mp4 @ 0000] Error writing trailer: No space left on device\n";
-        assert_eq!(classify(stderr), UpscaleError::NotEnoughSpace { folder: PathBuf::from(r"C:\OPFile\4K") });
+        assert_eq!(classify(stderr), UpscaleError::NotEnoughSpace { folder: output_dir() });
     }
 
     #[test]
