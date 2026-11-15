@@ -3,7 +3,7 @@
 use std::ffi::OsString;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
-use std::process::{Child, ExitStatus, Stdio};
+use std::process::{ExitStatus, Stdio};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread;
 use std::time::Duration;
@@ -14,7 +14,7 @@ use upscale4k_application::ports::{TranscodeProgress, Transcoder};
 use upscale4k_domain::encoder::Encoder;
 
 use crate::ffmpeg_errors::classify_failure;
-use crate::process::{hidden_command, read_tail, spawn_tied};
+use crate::process::{TiedChild, hidden_command, read_tail, spawn_tied};
 use crate::progress_parser::ProgressParser;
 
 /// Keep at most this much of ffmpeg's error output.
@@ -81,7 +81,7 @@ impl Transcoder for FfmpegTranscoder {
                 Err(RecvTimeoutError::Disconnected) => break,
             }
             if cancel.is_cancelled() && !killed {
-                let _ = child.kill();
+                child.kill();
                 killed = true;
             }
         }
@@ -106,13 +106,13 @@ impl Transcoder for FfmpegTranscoder {
 }
 
 /// Wait for ffmpeg to exit, still honouring cancel while it shuts down.
-fn wait(child: &mut Child, cancel: &CancelToken, killed: &mut bool) -> Option<ExitStatus> {
+fn wait(child: &mut TiedChild, cancel: &CancelToken, killed: &mut bool) -> Option<ExitStatus> {
     loop {
         match child.try_wait() {
             Ok(Some(status)) => return Some(status),
             Ok(None) => {
                 if cancel.is_cancelled() && !*killed {
-                    let _ = child.kill();
+                    child.kill();
                     *killed = true;
                 }
                 thread::sleep(Duration::from_millis(50));
@@ -125,7 +125,7 @@ fn wait(child: &mut Child, cancel: &CancelToken, killed: &mut bool) -> Option<Ex
     }
 }
 
-fn stop(child: &mut Child) {
-    let _ = child.kill();
+fn stop(child: &mut TiedChild) {
+    child.kill();
     let _ = child.wait();
 }

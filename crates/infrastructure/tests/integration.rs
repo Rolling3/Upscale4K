@@ -453,6 +453,45 @@ mod abrupt_exit {
             "the helper kept running after the app was gone"
         );
     }
+
+    /// Chocolatey's ffmpeg.exe is a small launcher that starts the real ffmpeg
+    /// as a second process; a batch file does the same. Cancel must stop both.
+    #[test]
+    fn cancel_also_stops_an_ffmpeg_started_through_a_launcher() {
+        let kit = toolkit();
+        let work = tempfile::tempdir().unwrap();
+        let input = work.path().join("long.mp4");
+        // Long enough that the encode can't simply finish within the time allowed for cancel.
+        gameplay_clip(&kit, &input, 60, 30, "aac");
+        let launcher = work.path().join("ffmpeg-launcher.bat");
+        fs::write(&launcher, format!("@\"{}\" %*\r\n", kit.ffmpeg.display())).unwrap();
+        let launched = Toolkit { ffmpeg: launcher, ..kit.clone() };
+        let out_dir = work.path().join("out");
+
+        let token = CancelToken::new();
+        let mut cancelled_at = None;
+        let platform = DesktopPlatform::new(Some(kit.ffmpeg.clone()));
+        let run = run_batch(
+            &launched,
+            &platform,
+            Encoder::X264,
+            &out_dir,
+            &[input],
+            |event| {
+                if matches!(event, BatchEvent::FileProgress { .. }) && cancelled_at.is_none() {
+                    token.cancel();
+                    cancelled_at = Some(Instant::now());
+                }
+            },
+            &token,
+        );
+
+        let waited = cancelled_at.expect("progress was reported before cancel").elapsed();
+        assert!(waited < Duration::from_secs(5), "cancel took {waited:?}");
+        assert!(run.summary.cancelled, "{:?}", run.events);
+        let files: Vec<_> = fs::read_dir(&out_dir).unwrap().flatten().map(|e| e.file_name()).collect();
+        assert!(files.is_empty(), "left behind: {files:?}");
+    }
 }
 
 #[test]
