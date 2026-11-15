@@ -7,10 +7,12 @@ mod state;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 
 use crate::state::AppState;
+
+/// Sent to the window when it is closed during a batch; the window asks the user.
+const CLOSE_REQUESTED: &str = "close-requested";
 
 pub fn run() {
     let app = tauri::Builder::default()
@@ -22,11 +24,10 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
-                let app = window.app_handle().clone();
-                let state = app.state::<AppState>();
+                let state = window.app_handle().state::<AppState>();
                 if state.running_batch().is_some() && !state.is_quitting() {
                     api.prevent_close();
-                    confirm_quit(app);
+                    let _ = window.emit(CLOSE_REQUESTED, ());
                 }
             }
         })
@@ -41,6 +42,7 @@ pub fn run() {
             commands::cancel_batch,
             commands::open_output_folder,
             commands::install_ffmpeg,
+            quit_app,
         ])
         .build(tauri::generate_context!())
         .expect("the app window could not be created");
@@ -58,25 +60,13 @@ pub fn run() {
     });
 }
 
-/// Ask before closing the window in the middle of a batch.
-fn confirm_quit(app: AppHandle) {
-    let mut dialog = app
-        .dialog()
-        .message("A video is still being upscaled. Stop it and quit? The unfinished file will be removed.")
-        .title("Upscale4K")
-        .kind(MessageDialogKind::Warning)
-        .buttons(MessageDialogButtons::OkCancelCustom("Stop and quit".into(), "Keep upscaling".into()));
-    if let Some(window) = commands::main_window(&app) {
-        dialog = dialog.parent(&window);
+/// The user confirmed quitting: stop the batch, then exit.
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    if let Some(token) = app.state::<AppState>().running_batch() {
+        token.cancel();
     }
-    dialog.show(move |quit| {
-        if quit {
-            if let Some(token) = app.state::<AppState>().running_batch() {
-                token.cancel();
-            }
-            exit_when_idle(app);
-        }
-    });
+    exit_when_idle(app);
 }
 
 /// Exit once the batch thread has stopped ffmpeg and cleaned up (at most 10 s).

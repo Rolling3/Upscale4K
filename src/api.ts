@@ -71,4 +71,5 @@ export const api = {
   cancelBatch: () => invoke<void>("cancel_batch"),
   openOutputFolder: () => invoke<void>("open_output_folder"),
   installFfmpeg: () => invoke<void>("install_ffmpeg"),
+  quitApp: () => invoke<void>("quit_app"),
 };

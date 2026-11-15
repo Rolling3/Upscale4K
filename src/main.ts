@@ -1,5 +1,6 @@
 // Upscale4K interface: list of clips, output folder, start/cancel, progress.
 
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 
 import { api, asMessage, type BatchEvent, type ConflictChoice, type Message, type Status } from "./api";
@@ -37,6 +38,7 @@ const ui = {
   cancel: byId<HTMLButtonElement>("cancel"),
   start: byId<HTMLButtonElement>("start"),
   about: byId<HTMLElement>("about"),
+  quitDialog: byId<HTMLDialogElement>("quit-dialog"),
   dialog: byId<HTMLDialogElement>("conflict-dialog"),
   dialogTitle: byId<HTMLElement>("conflict-title"),
   dialogList: byId<HTMLUListElement>("conflict-list"),
@@ -494,7 +496,27 @@ function listenForDrops(): void {
   }
 }
 
+/** The window was closed during a batch: ask before stopping it. */
+function listenForCloseRequests(): void {
+  ui.quitDialog.addEventListener("close", () => {
+    if (ui.quitDialog.returnValue === "quit") {
+      cancelling = true;
+      renderActions();
+      api.quitApp().catch((error) => showNotice(asMessage(error)));
+    }
+  });
+  listen("close-requested", () => {
+    if (ui.quitDialog.open) return;
+    if (ui.dialog.open) ui.dialog.close();
+    ui.quitDialog.returnValue = "";
+    ui.quitDialog.showModal();
+  }).catch(() => {
+    // Without the event the window still closes through the system after a batch.
+  });
+}
+
 renderClips();
 renderStatus();
 listenForDrops();
+listenForCloseRequests();
 void checkEnvironment();

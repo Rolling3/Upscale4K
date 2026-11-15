@@ -85,5 +85,16 @@
         </div>
       </form>
     </dialog>
+
+    <dialog id="quit-dialog" aria-labelledby="quit-title" aria-describedby="quit-help">
+      <form method="dialog">
+        <h2 id="quit-title">A video is still being upscaled</h2>
+        <p class="muted" id="quit-help">Stop it and quit? The unfinished file is removed. Finished videos stay saved.</p>
+        <div class="row end">
+          <button type="submit" value="stay" class="secondary" autofocus>Keep upscaling</button>
+          <button type="submit" value="quit" class="danger">Stop and quit</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>
