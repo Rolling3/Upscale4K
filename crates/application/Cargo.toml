@@ -1,0 +1,10 @@
+[package]
+name = "upscale4k-application"
+description = "Upscale4K use cases (batch upscale, settings, environment check) and the ports they depend on."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+upscale4k-domain.workspace = true

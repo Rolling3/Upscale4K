@@ -1,0 +1,22 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/domain",
+    "crates/application",
+]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.90"
+
+[workspace.dependencies]
+upscale4k-domain = { path = "crates/domain" }
+upscale4k-application = { path = "crates/application" }
+upscale4k-infrastructure = { path = "crates/infrastructure" }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
