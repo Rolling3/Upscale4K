@@ -148,17 +148,27 @@ fn winget_path() -> Option<PathBuf> {
     if let Some(local) = env::var_os("LOCALAPPDATA").map(PathBuf::from) {
         dirs.push(local.join(r"Microsoft\WindowsApps"));
     }
-    dirs.into_iter().map(|d| d.join("winget.exe")).find(|p| p.exists())
+    find_winget(dirs)
+}
+
+/// The first `winget.exe` in an absolute folder. Relative PATH entries are
+/// skipped because they resolve against whatever the working directory is.
+fn find_winget(dirs: Vec<PathBuf>) -> Option<PathBuf> {
+    dirs.into_iter().filter(|d| d.is_absolute()).map(|d| d.join("winget.exe")).find(|p| p.is_file())
 }
 
 /// Opens a new console window running the winget command, so the user sees
 /// the prompts and the result.
 ///
 /// winget's folder is put first on PATH instead of into the command line,
-/// because cmd.exe misreads quoted paths that contain `(`, `)` or `&`.
+/// because cmd.exe misreads quoted paths that contain `(`, `)` or `&`. The
+/// console also starts in winget's folder: cmd.exe looks in the current
+/// folder before PATH, so a `winget` file in the app's working folder must
+/// not be the one that runs.
 pub fn start_ffmpeg_install() -> io::Result<()> {
     let winget = winget_path().ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "winget isn't available"))?;
-    let mut path = winget.parent().map(|dir| dir.as_os_str().to_os_string()).unwrap_or_default();
+    let folder = winget.parent().map(Path::to_path_buf).ok_or_else(|| io::Error::other("winget has no folder"))?;
+    let mut path = folder.as_os_str().to_os_string();
     if let Some(current) = env::var_os("PATH") {
         path.push(";");
         path.push(current);
@@ -166,6 +176,7 @@ pub fn start_ffmpeg_install() -> io::Result<()> {
     Command::new("cmd.exe")
         .args(["/k", "winget", "install", "--id", "Gyan.FFmpeg", "-e"])
         .env("PATH", path)
+        .current_dir(&folder)
         .creation_flags(CREATE_NEW_CONSOLE)
         .spawn()
         .map(|_| ())
@@ -216,6 +227,18 @@ mod tests {
             winget_package_bins(root.path()),
             vec![pkg.join("ffmpeg-9.0.2-full_build").join("bin"), pkg.join("ffmpeg-8.1-full_build").join("bin")]
         );
+    }
+
+    #[test]
+    fn winget_is_only_taken_from_absolute_folders() {
+        let root = tempfile::tempdir().unwrap();
+        let real = root.path().join("WindowsApps");
+        fs::create_dir_all(&real).unwrap();
+        fs::write(real.join("winget.exe"), b"").unwrap();
+        // A relative PATH entry would resolve against whatever the working directory is.
+        let relative = PathBuf::from(".");
+        assert_eq!(find_winget(vec![relative, real.clone()]), Some(real.join("winget.exe")));
+        assert_eq!(find_winget(vec![PathBuf::from("WindowsApps")]), None);
     }
 
     #[test]
