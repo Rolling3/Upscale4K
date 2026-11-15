@@ -1,7 +1,7 @@
 //! Runs one ffmpeg encode, reports progress, and stops it on cancel.
 
 use std::ffi::OsString;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::{Child, ExitStatus, Stdio};
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -14,7 +14,7 @@ use upscale4k_application::ports::{TranscodeProgress, Transcoder};
 use upscale4k_domain::encoder::Encoder;
 
 use crate::ffmpeg_errors::classify_failure;
-use crate::process::hidden_command;
+use crate::process::{hidden_command, read_tail};
 use crate::progress_parser::ProgressParser;
 
 /// Keep at most this much of ffmpeg's error output.
@@ -53,12 +53,10 @@ impl Transcoder for FfmpegTranscoder {
         };
 
         // Both pipes are drained on their own threads so ffmpeg never blocks on a full pipe.
-        let stderr_reader = thread::spawn(move || {
-            let mut buf = Vec::new();
-            let _ = stderr.read_to_end(&mut buf);
-            let start = buf.len().saturating_sub(STDERR_LIMIT);
-            String::from_utf8_lossy(&buf[start..]).into_owned()
-        });
+        // Only the tail is kept while draining, so a clip that makes ffmpeg print
+        // errors for hours cannot grow memory without limit.
+        let stderr_reader =
+            thread::spawn(move || String::from_utf8_lossy(&read_tail(&mut stderr, STDERR_LIMIT)).into_owned());
         let (lines_tx, lines_rx) = mpsc::channel::<String>();
         let stdout_reader = thread::spawn(move || {
             for line in BufReader::new(stdout).lines() {
