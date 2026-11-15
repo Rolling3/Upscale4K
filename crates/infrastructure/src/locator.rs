@@ -51,11 +51,13 @@ fn executable(name: &str) -> String {
     if cfg!(windows) { format!("{name}.exe") } else { name.to_string() }
 }
 
-/// Drop repeats, comparing without case on Windows.
+/// Absolute folders only, without repeats (compared without case on Windows).
+/// Relative entries and unexpanded `%VAR%` text are dropped: they would make
+/// the app run whatever ffmpeg sits in an unexpected folder.
 fn unique(dirs: &[PathBuf]) -> Vec<PathBuf> {
     let mut seen = std::collections::HashSet::new();
     dirs.iter()
-        .filter(|d| !d.as_os_str().is_empty())
+        .filter(|d| d.is_absolute() && !d.to_string_lossy().contains('%'))
         .filter(|d| {
             let key = d.to_string_lossy().trim_end_matches(['\\', '/']).to_string();
             seen.insert(if cfg!(windows) { key.to_lowercase() } else { key })
@@ -89,9 +91,23 @@ mod tests {
         assert_eq!(FfmpegLocator::in_dirs(vec![root.path().to_path_buf()]).locate(), None);
     }
 
+    fn absolute(name: &str) -> PathBuf {
+        std::env::temp_dir().join(name)
+    }
+
     #[test]
     fn repeated_folders_are_searched_once() {
-        let dirs = vec![PathBuf::from("/a/bin"), PathBuf::from("/a/bin/"), PathBuf::from("/b"), PathBuf::new()];
-        assert_eq!(unique(&dirs), vec![PathBuf::from("/a/bin"), PathBuf::from("/b")]);
+        let a = absolute("a");
+        let mut a_slash = a.clone().into_os_string();
+        a_slash.push(std::path::MAIN_SEPARATOR_STR);
+        let dirs = vec![a.clone(), PathBuf::from(a_slash), absolute("b"), PathBuf::new()];
+        assert_eq!(unique(&dirs), vec![a, absolute("b")]);
+    }
+
+    #[test]
+    fn relative_folders_and_unexpanded_variables_are_never_searched() {
+        // A relative PATH entry would run whatever ffmpeg sits in the current folder.
+        let dirs = vec![PathBuf::from("."), PathBuf::from("bin"), absolute("%NOPE%"), absolute("ok")];
+        assert_eq!(unique(&dirs), vec![absolute("ok")]);
     }
 }

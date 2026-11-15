@@ -61,13 +61,11 @@ pub fn ffmpeg_search_dirs() -> Vec<PathBuf> {
     if let Some(program_files) = env::var_os("ProgramFiles").map(PathBuf::from) {
         dirs.extend(winget_package_bins(&program_files.join(r"WinGet\Packages")));
     }
-    if let Some(program_data) = env::var_os("ProgramData").map(PathBuf::from) {
-        dirs.push(program_data.join(r"chocolatey\bin"));
-    }
     if let Some(profile) = env::var_os("USERPROFILE").map(PathBuf::from) {
         dirs.push(profile.join(r"scoop\shims"));
     }
-    dirs.push(PathBuf::from(r"C:\ffmpeg\bin"));
+    // No guessed folders that any user can create, such as C:\ffmpeg or
+    // C:\ProgramData\chocolatey (Chocolatey puts its folder on PATH anyway).
     dirs
 }
 
