@@ -71,15 +71,20 @@ The encoder in use is shown at the top right. Clips wider than 4096 pixels after
 - Windows: `C:\OPFile\4K`
 - macOS: `~/Movies/Upscale4K`
 
+On a Windows PC shared with other accounts, choose an output folder inside your own user folder (for example `Videos`), since other accounts may be able to create or read folders at the root of the drive.
+
 ## How it works
 
 For each clip Upscale4K runs ffmpeg like this (NVENC example):
 
 ```text
-ffmpeg -i <input> -map 0:V:0 -map 0:a? -vf scale=-2:2160:flags=lanczos
+ffmpeg -protocol_whitelist file -format_whitelist mov,matroska -i <input>
+       -map 0:V:0 -map 0:a? -vf scale=-2:2160:flags=lanczos
        -c:v h264_nvenc -preset p7 -rc vbr -cq 19 -b:v 0 -pix_fmt yuv420p
        -c:a copy -movflags +faststart -f mp4 <output>.part
 ```
+
+The input is only opened as a local MP4/MOV or Matroska file, so a file that is something else under a video name (a playlist, for example) is refused instead of being followed.
 
 | Encoder | Used on | Video settings |
 | --- | --- | --- |
