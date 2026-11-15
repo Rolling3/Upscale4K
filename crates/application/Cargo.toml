@@ -4,6 +4,7 @@ description = "Upscale4K use cases (batch upscale, settings, environment check) 
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish = false
 
 [dependencies]

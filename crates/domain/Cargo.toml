@@ -4,6 +4,7 @@ description = "Rules for upscaling a video clip to 2160p: accepted files, output
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish = false
 
 [dependencies]

@@ -4,6 +4,7 @@ description = "Upscale gameplay clips to 4K so YouTube encodes them with a bette
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish = false
 
 [lib]

@@ -130,3 +130,7 @@ The Rust code follows a light clean architecture. Each layer is its own crate, s
 | `crates/infrastructure` | Infrastructure | ffmpeg and ffprobe processes, progress parsing, files, settings, Windows and macOS specifics |
 | `src-tauri` | UI (backend) | Tauri commands and app setup |
 | `src` | UI (frontend) | HTML, CSS and TypeScript, no framework |
+
+## License
+
+[MIT](LICENSE)
