@@ -410,7 +410,11 @@ mod abrupt_exit {
             .unwrap();
         let started = Instant::now();
         while fs::metadata(busy_file).map(|m| m.len()).unwrap_or(0) == 0 {
-            assert!(started.elapsed() < Duration::from_secs(60), "ffmpeg never started writing {busy_file:?}");
+            if started.elapsed() > Duration::from_secs(60) {
+                let _ = app.kill();
+                let _ = app.wait();
+                panic!("ffmpeg never started writing {busy_file:?}");
+            }
             thread::sleep(Duration::from_millis(100));
         }
         app.kill().unwrap();
