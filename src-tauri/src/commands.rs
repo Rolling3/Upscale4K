@@ -13,7 +13,7 @@ use upscale4k_application::batch::{BatchEvent, BatchItem, BatchRequest, Upscaler
 use upscale4k_application::error::UpscaleError;
 use upscale4k_application::ports::MediaProbe;
 use upscale4k_application::settings::change_output_folder;
-use upscale4k_domain::media::{SUPPORTED_EXTENSIONS, is_supported_video};
+use upscale4k_domain::media::{SUPPORTED_EXTENSIONS, is_acceptable_input, is_supported_video};
 use upscale4k_domain::naming::conflicting_inputs;
 use upscale4k_infrastructure::ffmpeg_runner::FfmpegTranscoder;
 use upscale4k_infrastructure::ffprobe::FfprobeMediaProbe;
@@ -33,6 +33,10 @@ async fn blocking<T: Send + 'static>(
 
 fn plain(text: impl Into<String>) -> MessageDto {
     MessageDto { text: text.into(), hint: None }
+}
+
+fn not_a_video() -> MessageDto {
+    plain("Only MP4, MKV and MOV videos, given by their full path, can be upscaled.")
 }
 
 /// Dialogs are attached to the main window, so it can't be used while they are open.
@@ -125,6 +129,7 @@ pub async fn inspect_videos(app: AppHandle, paths: Vec<String>) -> Result<Vec<Cl
             .iter()
             .map(PathBuf::from)
             .map(|path| match &probe {
+                _ if !is_acceptable_input(&path) => ClipDto::from_error(&path, not_a_video()),
                 None => ClipDto::from_error(&path, UpscaleError::FfmpegNotFound.to_user_message(&platform).into()),
                 Some(probe) => match probe.probe(&path) {
                     Ok(info) => ClipDto::from_info(&path, &info),
@@ -192,6 +197,10 @@ pub async fn start_batch(
         let Some((toolkit, encoder)) = state.environment().and_then(|e| Some((e.toolkit?, e.encoder?))) else {
             return Err(UpscaleError::FfmpegNotFound.to_user_message(&platform).into());
         };
+        // The same rule as the picker and the drop filter, enforced here as well.
+        if items.iter().any(|item| !is_acceptable_input(&item.path)) {
+            return Err(not_a_video());
+        }
         let Some(token) = state.begin_batch() else {
             return Err(plain("Upscaling is already running."));
         };

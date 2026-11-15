@@ -15,6 +15,12 @@ pub fn is_supported_video(path: &Path) -> bool {
         .is_some_and(|ext| SUPPORTED_EXTENSIONS.iter().any(|ok| ext.eq_ignore_ascii_case(ok)))
 }
 
+/// What the batch accepts from the interface: an absolute path (dialogs and
+/// drag-and-drop always give one) to a supported video file.
+pub fn is_acceptable_input(path: &Path) -> bool {
+    path.is_absolute() && is_supported_video(path)
+}
+
 /// Width and height of a frame in pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FrameSize {
@@ -68,6 +74,15 @@ mod tests {
         for name in ["a.mp4", "b.mkv", "c.mov", "D.MP4", "e.MkV", "clip.final.Mov"] {
             assert!(is_supported_video(Path::new(name)), "{name} should be accepted");
         }
+    }
+
+    #[test]
+    fn an_input_must_be_an_absolute_path_to_a_supported_video() {
+        let absolute = std::env::temp_dir().join("clip.mp4");
+        assert!(is_acceptable_input(&absolute));
+        assert!(!is_acceptable_input(Path::new("clip.mp4")), "relative paths depend on the working folder");
+        assert!(!is_acceptable_input(Path::new("-clip.mp4")), "a relative name could read as an option");
+        assert!(!is_acceptable_input(&std::env::temp_dir().join("notes.txt")));
     }
 
     #[test]
