@@ -57,13 +57,21 @@ impl UpscaleError {
                 "ffmpeg isn't installed, or Upscale4K couldn't find it.".to_string(),
                 Some(format!("Install it with: {}", platform.install_hint().command)),
             ),
-            UpscaleError::InputNotFound { path } => {
-                (format!("{} was not found. It may have been moved, renamed or deleted.", file_name(path)), None)
+            UpscaleError::InputNotFound { path } => (
+                format!("{} was not found. It may have been moved, renamed or deleted.", file_name(path)),
+                Some("Add the file again from where it is now.".into()),
+            ),
+            UpscaleError::InputUnreadable { path, detail } => (
+                format!("ffmpeg could not read {} as a video. ffmpeg said: {detail}", file_name(path)),
+                Some(
+                    "Check that the file plays in a video player. If it is still being recorded or copied, \
+                     wait until that has finished."
+                        .into(),
+                ),
+            ),
+            UpscaleError::NoVideoStream { path } => {
+                (format!("{} has no video track.", file_name(path)), Some("Choose a file that contains video.".into()))
             }
-            UpscaleError::InputUnreadable { path, detail } => {
-                (format!("ffmpeg could not read {} as a video. ffmpeg said: {detail}", file_name(path)), None)
-            }
-            UpscaleError::NoVideoStream { path } => (format!("{} has no video track.", file_name(path)), None),
             UpscaleError::OutputFolderNotWritable { folder, detail } => (
                 format!("Can't write to the output folder {}. {detail}", folder.display()),
                 platform.write_blocked_hint(),
@@ -153,6 +161,21 @@ mod tests {
             .to_user_message(&FakePlatform::windows_like());
         assert!(msg.text.contains("enough free space"), "{}", msg.text);
         assert_eq!(msg.hint, None);
+    }
+
+    #[test]
+    fn input_problems_suggest_what_to_try_next() {
+        let platform = FakePlatform::windows_like();
+        let path = PathBuf::from("clips").join("boss.mkv");
+        let errors = [
+            UpscaleError::InputNotFound { path: path.clone() },
+            UpscaleError::InputUnreadable { path: path.clone(), detail: "Invalid data".into() },
+            UpscaleError::NoVideoStream { path },
+        ];
+        for error in errors {
+            let hint = error.to_user_message(&platform).hint;
+            assert!(hint.as_deref().is_some_and(|h| !h.is_empty()), "{error:?} has no next step");
+        }
     }
 
     #[test]

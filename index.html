@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Upscale4K</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+
+  <body>
+    <main class="app">
+      <header class="top">
+        <div class="brand">
+          <h1 translate="no">Upscale4K</h1>
+          <p class="tagline">Upscale clips to 2160p so YouTube uses its better codec.</p>
+        </div>
+        <p class="pill" id="encoder-pill" data-tone="neutral" aria-live="polite">Checking ffmpeg…</p>
+      </header>
+
+      <section class="setup" id="setup" aria-labelledby="setup-title" hidden>
+        <h2 id="setup-title">ffmpeg is needed</h2>
+        <p id="setup-text"></p>
+        <div class="command">
+          <code id="install-command" translate="no"></code>
+          <button type="button" class="ghost small" id="copy-command">Copy</button>
+        </div>
+        <p class="muted small-text" id="install-note"></p>
+        <div class="row">
+          <button type="button" class="primary" id="run-install" hidden>Install with winget</button>
+          <button type="button" class="secondary" id="recheck">Check again</button>
+        </div>
+      </section>
+
+      <section class="drop" id="drop" aria-label="Add videos">
+        <div class="drop-text">
+          <p class="drop-title">Drop videos here</p>
+          <p class="muted small-text">MP4, MKV or MOV</p>
+        </div>
+        <button type="button" class="secondary" id="choose">Choose files…</button>
+      </section>
+
+      <div class="notice" id="notice" role="status" hidden>
+        <div class="notice-text">
+          <p id="notice-text"></p>
+          <p class="muted small-text" id="notice-hint" hidden></p>
+        </div>
+        <button type="button" class="ghost small" id="notice-dismiss">Dismiss</button>
+      </div>
+
+      <ul class="clips" id="clips" aria-label="Videos" translate="no" hidden></ul>
+
+      <section class="output" aria-label="Output folder">
+        <div class="output-text">
+          <span class="label">Save to</span>
+          <span class="path" id="output-path" translate="no"></span>
+        </div>
+        <div class="row">
+          <button type="button" class="ghost" id="change-folder">Change…</button>
+          <button type="button" class="ghost" id="open-folder">Open</button>
+        </div>
+      </section>
+
+      <footer class="actions">
+        <p class="summary" id="summary" role="status" aria-live="polite"></p>
+        <div class="row">
+          <button type="button" class="ghost" id="clear">Clear list</button>
+          <button type="button" class="danger" id="cancel" hidden>Cancel</button>
+          <button type="button" class="primary" id="start" disabled>Upscale</button>
+        </div>
+      </footer>
+      <p class="about" id="about"></p>
+    </main>
+
+    <dialog id="conflict-dialog" aria-labelledby="conflict-title" aria-describedby="conflict-help">
+      <form method="dialog">
+        <h2 id="conflict-title"></h2>
+        <p class="muted" id="conflict-help">Nothing is replaced unless you choose Replace.</p>
+        <ul class="conflict-list" id="conflict-list"></ul>
+        <div class="row end">
+          <button type="submit" value="cancel" class="ghost">Cancel</button>
+          <button type="submit" value="skip" class="secondary">Skip these</button>
+          <button type="submit" value="replace" class="secondary">Replace</button>
+          <button type="submit" value="keepBoth" class="primary" autofocus>Keep both</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

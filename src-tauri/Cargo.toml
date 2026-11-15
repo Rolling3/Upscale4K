@@ -1,0 +1,22 @@
+[package]
+name = "upscale4k"
+description = "Upscale gameplay clips to 4K so YouTube encodes them with a better codec."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+name = "upscale4k_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+upscale4k-domain.workspace = true
+upscale4k-application.workspace = true
+upscale4k-infrastructure.workspace = true
