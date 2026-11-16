@@ -81,29 +81,45 @@ jobs:
     outputs:
       id: ${{ steps.draft.outputs.id }}
     steps:
+      # Only for the app version, which is part of every file name.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - id: draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
+          # {version} and {url} are filled in below, so each line links straight to its file.
           BODY: |
-            Download the file for your computer:
-            - Windows: `Upscale4K_<version>_x64-setup.exe`
-            - macOS on Apple Silicon (M1 and later): `Upscale4K_<version>_aarch64.dmg`
-            - macOS on Intel: `Upscale4K_<version>_x64.dmg`
+            ### For Mac
+            - Mac with Apple Silicon (M1 or later): [Upscale4K_{version}_aarch64.dmg]({url}/Upscale4K_{version}_aarch64.dmg)
+            - Mac with Intel: [Upscale4K_{version}_x64.dmg]({url}/Upscale4K_{version}_x64.dmg)
 
-            Upscale4K needs ffmpeg. Windows: `winget install --id Gyan.FFmpeg -e`. macOS: `brew install ffmpeg`.
-            The Windows installer and the macOS app are not code-signed by a paid certificate. See the README for the first-launch steps.
+            Not sure which Mac you have? Open the Apple menu > **About This Mac**. If it shows **Chip** with an Apple M chip (M1 or later), you have Apple Silicon. If it shows **Processor** with Intel, you have an Intel Mac.
+            The `.app.tar.gz` files hold the same Mac app without the disk image. You only need the `.dmg`.
+
+            ### For Windows
+            - Windows 10 or 11 (64-bit): [Upscale4K_{version}_x64-setup.exe]({url}/Upscale4K_{version}_x64-setup.exe)
+
+            Upscale4K needs ffmpeg. Mac: `brew install ffmpeg`. Windows: `winget install --id Gyan.FFmpeg -e`.
+            The installers are not code-signed by a paid certificate. See the README for the first-launch steps.
         run: |
           # "beta" tags are published as pre-releases named "Upscale4K Beta".
           case "$TAG" in
             beta*) name="Upscale4K Beta${TAG#beta}"; prerelease=true ;;
             *) name="Upscale4K $TAG"; prerelease=false ;;
           esac
+          version=$(jq -r .version src-tauri/tauri.conf.json)
+          case "$version" in
+            ''|null|*[!0-9A-Za-z.+-]*) echo "Unexpected app version: $version" >&2; exit 1 ;;
+          esac
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          body=${BODY//'{version}'/"$version"}
+          body=${body//'{url}'/"$url"}
           id=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
             --jq '.[] | select(.tag_name == env.TAG and .draft) | .id' | head -n 1)
           if [ -z "$id" ]; then
             id=$(gh api "repos/${GITHUB_REPOSITORY}/releases" \
-              -f tag_name="$TAG" -f name="$name" -f body="$BODY" \
+              -f tag_name="$TAG" -f name="$name" -f body="$body" \
               -F draft=true -F prerelease="$prerelease" --jq .id)
           fi
           case "$id" in

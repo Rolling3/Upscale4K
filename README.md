@@ -6,6 +6,23 @@ YouTube gives 4K uploads its higher quality codec (VP9 or AV1) and a much higher
 
 ![Upscale4K](docs/screenshot.png)
 
+## Download
+
+Each link downloads the file straight away.
+
+### For Mac
+
+- Mac with Apple Silicon (M1 or later): [Upscale4K_1.0.0-beta_aarch64.dmg](https://github.com/Rolling3/Upscale4K/releases/download/beta/Upscale4K_1.0.0-beta_aarch64.dmg)
+- Mac with Intel: [Upscale4K_1.0.0-beta_x64.dmg](https://github.com/Rolling3/Upscale4K/releases/download/beta/Upscale4K_1.0.0-beta_x64.dmg)
+
+Not sure which Mac you have? Open the Apple menu > **About This Mac**. If it shows **Chip** with an Apple M chip (M1 or later), you have Apple Silicon. If it shows **Processor** with Intel, you have an Intel Mac.
+
+### For Windows
+
+- Windows 10 or 11 (64-bit): [Upscale4K_1.0.0-beta_x64-setup.exe](https://github.com/Rolling3/Upscale4K/releases/download/beta/Upscale4K_1.0.0-beta_x64-setup.exe)
+
+You also need ffmpeg (see [Requirements](#requirements)). The first launch takes one extra step because the app isn't code-signed by a paid certificate: see [Windows](#windows) or [First launch on macOS](#first-launch-on-macos). All files and earlier versions are on the [Releases page](../../releases).
+
 ## What it does
 
 - Add one or more videos (MP4, MKV, MOV) with the file picker or by dragging them onto the window.
@@ -27,7 +44,7 @@ If ffmpeg is missing, the app shows the command. On Windows it also has a button
 
 ## Install
 
-Download Upscale4K from the [Releases page](../../releases). The current release is a beta.
+Download the file for your computer from [Download](#download) above, or from the [Releases page](../../releases). The current release is a beta.
 
 ### Windows
 
