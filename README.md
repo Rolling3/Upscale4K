@@ -136,6 +136,10 @@ The Rust code follows a light clean architecture. Each layer is its own crate, s
 | `src-tauri` | UI (backend) | Tauri commands and app setup |
 | `src` | UI (frontend) | HTML, CSS and TypeScript, no framework |
 
+### Dependency updates
+
+[Dependabot](https://docs.github.com/en/code-security/dependabot) is GitHub's own update service. Once a month it checks the GitHub Actions, Rust crates and npm packages the project uses, and opens a pull request when a newer version is out. The tests run on every such pull request before it is merged. This is why `dependabot[bot]` is listed among the contributors. The schedule is in [`.github/dependabot.yml`](.github/dependabot.yml).
+
 ## License
 
 [MIT](LICENSE)
