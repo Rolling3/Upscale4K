@@ -170,6 +170,8 @@ jobs:
           uploadWorkflowArtifacts: true
 
   # The draft becomes public only when every build has uploaded its file.
+  # When a tag is pushed again, the release published earlier for it stays up
+  # until this point and is then replaced by the new one.
   publish:
     name: Publish release
     needs: [release, build]
@@ -181,4 +183,13 @@ jobs:
       - env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ID: ${{ needs.release.outputs.id }}
-        run: gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${ID}" -F draft=false --jq .html_url
+          TAG: ${{ github.ref_name }}
+        run: |
+          earlier=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq '.[] | select(.tag_name == env.TAG and (.draft | not)) | .id')
+          for old in $earlier; do
+            [ "$old" = "$ID" ] && continue
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${old}"
+            echo "Replaced the earlier release ${old}"
+          done
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${ID}" -F draft=false --jq .html_url
